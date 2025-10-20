@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 # === APP TITLE ===
 st.title("🔗 Redirect Tester")
@@ -56,13 +57,26 @@ if uploaded_file:
         target_col = df.columns[cols.index("target")]
 
         pairs = list(zip(df[source_col].dropna(), df[target_col].dropna()))
-        st.info(f"Found {len(pairs)} source–target pairs. Checking redirects...")
+        total = len(pairs)
+        st.info(f"Found {total} source–target pairs. Checking redirects...")
 
         results = []
+
+        # === Progress bar ===
+        progress_bar = st.progress(0)
+        progress_text = st.empty()
+
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(check_redirect, s, t): (s, t) for s, t in pairs}
+            completed = 0
             for future in as_completed(futures):
                 results.append(future.result())
+                completed += 1
+                progress = int(completed / total * 100)
+                progress_bar.progress(progress)
+                progress_text.text(f"🔍 Checking... {completed}/{total} ({progress}%)")
+
+        progress_text.text("✅ Done!")
 
         # Convert results into a DataFrame
         result_df = pd.DataFrame(results, columns=["Source", "Target", "Status", "Final URL"])
